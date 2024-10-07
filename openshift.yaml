@@ -1,0 +1,189 @@
+
+
+Step1 
+install OC
+
+wget https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/stable/openshift-client-linux.tar.gz
+tar -xvzf openshift-client-linux.tar.gz
+cp kubectl oc /usr/bin
+
+Step 2
+
+
+oc new-project team3
+
+oc adm policy add-scc-to-user anyuid -z default -n team3
+oc adm policy add-scc-to-user hostmount-anyuid -z default -n team3
+oc adm policy add-scc-to-user privileged -z default -n team3
+
+oc project list
+oc new-project team3
+
+
+Create below yaml files
+******************************
+Openshift oc team3
+*************************
+
+ pv.yaml
+ *********************
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: team3-jenkins-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /var/lib/jenkins/team3
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: team3-jenkins-pvc
+  namespace: team3
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+***************
+deploy.yaml
+***************
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: team3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      containers:
+        - name: jenkins
+          image: jenkins/jenkins:latest  # Latest Jenkins image from Docker Hub
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: /var/jenkins_home  # Default Jenkins home directory
+              name: jenkins-storage
+          securityContext:
+            runAsUser: 0  # Run as root user for privilege
+            privileged: false  # Enable privileged mode
+      volumes:
+        - name: jenkins-storage
+          persistentVolumeClaim:
+            claimName: team3-jenkins-pvc  # Use the PVC defined earlier
+			
+**************************
+
+ service.yaml
+ ******************
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins
+  namespace: team3
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: jenkins
+	
+****************
+	
+	route.yaml
+***************
+
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: jenkins
+  namespace: team3
+spec:
+  to:
+    kind: Service
+    name: jenkins
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge  # Adjust if needed
+****************************************
+
+
+
+
+oc create secret docker-registry dockerhub-secret \
+  --docker-server=https://index.docker.io/v1/ \
+  --docker-username=gopih2022 \
+  --docker-password=123456789
+
+***************************
+What is Source-to-Image (S2I)
+************************
+oc new-app https://github.com/gopih2022/ruby-ex.git
+
+
+
+oc new-app openshift/ruby:2.5-ubi8~https://github.com/gopih2022/ruby-ex.git
+oc get is -n team3 --selector role=builder
+ oc logs -f buildconfig/ruby-ex
+ 
+ 
+ ***********S2I Example for Nginx *******************
+ 
+ oc get imagestreams
+ 
+ oc get buildconfigs
+ oc get deploymentconfigs
+ 
+ oc start-build ruby-ex
+ 
+ oc get svc
+ 
+ oc expose svc os-sample-python
+ 
+ oc get routes
+ 
+ --- open route  os-sample-python-team3.apps.natwest.priartw.com in browser for expected result
+ 
+ 
+ oc run team3app --image=nginx
+ oc expose pod/team3app --port=80
+ oc expose svc/team3app 
+  oc get routes
+  -- open team3app-team3.apps.natwest.priartw.com in terminal for nginx result
+  
+  oc start-build myapp  -- start build 
+  oc rollout restart deploy myapp  -- restart build
+  
+  ************************
+  
+  Create your ownm repository
+  ***************************
+  
+  oc new-app https://github.com/gopih2022/openshiftS2i.git
+  
+  oc new-app httpd:2.4~https://github.com/gopih2022/openshiftS2i.git
+  
+  
+   oc delete namespace openshift-operators-redhat
+ 
+ 
+ oc adm policy add-scc-to-user anyuid -z default -n team3-pro-efk
+oc adm policy add-scc-to-user hostmount-anyuid -z default -n team3-pro-efk
+oc adm policy add-scc-to-user privileged -z default -n team3-pro-efk
